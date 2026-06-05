@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Cost Surface and Contours</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+html,body{
+margin:0;padding:0;width:100%;height:100%;
+overflow:hidden;font-family:Arial,sans-serif;
+}
+body{padding:8px;box-sizing:border-box;}
+h2{margin:0 0 8px 0;font-size:22px;}
+.controls{
+display:flex;gap:20px;align-items:center;
+font-size:16px;margin-bottom:8px;flex-wrap:wrap;
+}
+input[type=range]{width:260px;}
+.info{font-size:18px;font-weight:bold;}
+.row{
+display:flex;
+gap:10px;
+height:calc(100vh - 85px);
+}
+.plot{
+width:50%;
+height:100%;
+}
+</style>
+</head>
+<body>
+
+<h2>Linear Regression Cost Function: Surface ↔ Contour Relationship</h2>
+
+<div class="controls">
+<div><b>w:</b> <input id="wSlider" type="range" min="-1" max="3" step="0.01" value="1"> <span id="wVal">1.00</span></div>
+<div><b>b:</b> <input id="bSlider" type="range" min="-5" max="5" step="0.01" value="0"> <span id="bVal">0.00</span></div>
+<div class="info">J(w,b)= <span id="costVal"></span></div>
+</div>
+
+<div class="row">
+<div id="surface" class="plot"></div>
+<div id="contour" class="plot"></div>
+</div>
+
+<script>
+
+const x=[1,2,3,4,5,6];
+const y=[2.2,2.8,3.7,5.1,5.8,7.2];
+
+function cost(w,b){
+ let s=0;
+ for(let i=0;i<x.length;i++){
+   const e=w*x[i]+b-y[i];
+   s+=e*e;
+ }
+ return s/x.length;
+}
+
+// optimum
+const n=x.length;
+let sx=0,sy=0,sxy=0,sx2=0;
+for(let i=0;i<n;i++){
+ sx+=x[i]; sy+=y[i];
+ sxy+=x[i]*y[i];
+ sx2+=x[i]*x[i];
+}
+const wStar=(n*sxy-sx*sy)/(n*sx2-sx*sx);
+const bStar=(sy-wStar*sx)/n;
+
+// grid centered around optimum so contours are visible
+const W=[],B=[],Z=[];
+let zmax=0;
+
+for(let w=wStar-2; w<=wStar+2; w+=0.04) W.push(+w.toFixed(3));
+for(let b=bStar-8; b<=bStar+8; b+=0.12) B.push(+b.toFixed(3));
+
+for(let i=0;i<B.length;i++){
+ let row=[];
+ for(let j=0;j<W.length;j++){
+   const z=cost(W[j],B[i]);
+   row.push(z);
+   zmax=Math.max(zmax,z);
+ }
+ Z.push(row);
+}
+
+let camera={eye:{x:1.6,y:1.4,z:1.1}};
+
+function initPlots(){
+
+ const w0=1,b0=0,J0=cost(w0,b0);
+
+ Plotly.newPlot('surface',[
+ {
+  type:'surface',
+  x:W,y:B,z:Z,
+  colorscale:'Viridis',
+  contours:{
+    z:{
+      show:true,
+      usecolormap:true,
+      project:{z:true}
+    }
+  }
+ },
+ {
+  type:'scatter3d',
+  mode:'markers',
+  x:[w0],y:[b0],z:[J0],
+  marker:{size:6,color:'red'},
+  name:'Current'
+ },
+ {
+  type:'scatter3d',
+  mode:'markers',
+  x:[wStar],y:[bStar],z:[cost(wStar,bStar)],
+  marker:{size:6,color:'limegreen'},
+  name:'Optimal'
+ },
+ {
+  type:'scatter3d',
+  mode:'lines',
+  x:[w0,w0],
+  y:[b0,b0],
+  z:[0,J0],
+  line:{width:6,color:'red'},
+  showlegend:false
+ }
+ ],{
+ title:{text:'3D Cost Surface J(w,b)',font:{size:20}},
+ margin:{l:0,r:0,t:50,b:0},
+ legend:{font:{size:14}},
+ scene:{
+  xaxis:{title:'w'},
+  yaxis:{title:'b'},
+  zaxis:{title:'Cost'},
+  aspectmode:'manual',
+  aspectratio:{x:1.2,y:1.2,z:0.8},
+  camera:camera
+ }
+ });
+
+ document.getElementById('surface').on('plotly_relayout',e=>{
+  if(e['scene.camera']) camera=e['scene.camera'];
+ });
+
+ Plotly.newPlot('contour',[
+ {
+  type:'contour',
+  x:W,y:B,z:Z,
+  colorscale:'Viridis',
+  contours:{
+   coloring:'lines',
+   showlabels:true
+  }
+ },
+ {
+  type:'scatter',
+  mode:'markers+text',
+  x:[w0],y:[b0],
+  text:['Current'],
+  textposition:'top right',
+  marker:{size:12,color:'red'},
+  showlegend:false
+ },
+ {
+  type:'scatter',
+  mode:'markers+text',
+  x:[wStar],y:[bStar],
+  text:['Optimal'],
+  textposition:'bottom right',
+  marker:{size:10,color:'limegreen'},
+  showlegend:false
+ }
+ ],{
+ title:{text:'Contour Map of J(w,b)',font:{size:20}},
+ margin:{l:60,r:20,t:50,b:60},
+ xaxis:{title:'w'},
+ yaxis:{title:'b'}
+ });
+}
+
+function update(){
+ const w=parseFloat(wSlider.value);
+ const b=parseFloat(bSlider.value);
+ const J=cost(w,b);
+
+ wVal.innerText=w.toFixed(2);
+ bVal.innerText=b.toFixed(2);
+ costVal.innerText=J.toFixed(4);
+
+ Plotly.restyle('surface',{x:[[w]],y:[[b]],z:[[J]]},[1]);
+ Plotly.restyle('surface',{x:[[w,w]],y:[[b,b]],z:[[0,J]]},[3]);
+
+ Plotly.restyle('contour',{
+   x:[[w]],
+   y:[[b]],
+   text:[[`J=${J.toFixed(2)}`]]
+ },[1]);
+}
+
+initPlots();
+update();
+
+wSlider.addEventListener('input',update);
+bSlider.addEventListener('input',update);
+
+</script>
+</body>
+</html>
