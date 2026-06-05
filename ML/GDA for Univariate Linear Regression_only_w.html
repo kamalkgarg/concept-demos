@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gradient Descent for Linear Regression</title>
+<style>
+html,body{
+    margin:0;padding:0;height:100%;overflow:hidden;
+    font-family:Segoe UI,Arial,sans-serif;background:#0f172a;color:#e5e7eb;
+}
+#container{display:flex;height:100vh;width:100vw;}
+#left,#right{width:50%;height:100%;box-sizing:border-box;}
+#left{padding:18px;background:#111827;display:flex;flex-direction:column;}
+#right{background:#020617;position:relative;}
+h2{margin:0 0 10px 0;}
+.card{
+    background:#1f2937;border-radius:12px;padding:12px;margin-bottom:10px;
+}
+table{width:100%;border-collapse:collapse;font-size:14px;}
+td{padding:4px;}
+.config{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+input{width:100%;padding:4px;}
+button{padding:8px 12px;border:none;border-radius:8px;background:#2563eb;color:white;cursor:pointer;}
+#log{font-family:Consolas,monospace;font-size:14px;line-height:1.45;}
+canvas{width:100%;height:100%;display:block;}
+.small{font-size:13px;color:#cbd5e1;}
+</style>
+</head>
+<body>
+<div id="container">
+<div id="left">
+<h2>Gradient Descent: Linear Regression (y = wx)</h2>
+
+<div class="card">
+<div class="config">
+<div>Initial w <input id="w0" type="number" value="-2" step="0.1"></div>
+<div>Learning Rate α <input id="lr" type="number" value="0.08" step="0.01"></div>
+</div>
+<br>
+<button onclick="start()">Restart Animation</button>
+</div>
+
+<div class="card">
+<div id="log"></div>
+</div>
+
+<div class="card small">
+Dataset: (1,2), (2,4), (3,6), (4,8)<br>
+Cost Function:
+J(w)= (1/2m) Σ (wxᵢ-yᵢ)²<br>
+Gradient:
+dJ/dw = (1/m) Σ (wxᵢ-yᵢ)xᵢ
+</div>
+</div>
+
+<div id="right">
+<canvas id="c"></canvas>
+</div>
+</div>
+
+<script>
+const pts=[
+{x:1,y:2},{x:2,y:4},{x:3,y:6},{x:4,y:8}
+];
+
+let canvas=document.getElementById("c");
+let ctx=canvas.getContext("2d");
+
+function resize(){
+canvas.width=canvas.clientWidth;
+canvas.height=canvas.clientHeight;
+}
+window.onresize=resize; resize();
+
+let state={};
+
+function cost(w){
+ let s=0;
+ for(const p of pts) s+=(w*p.x-p.y)**2;
+ return s/(2*pts.length);
+}
+function grad(w){
+ let s=0;
+ for(const p of pts) s+=(w*p.x-p.y)*p.x;
+ return s/pts.length;
+}
+
+function project(x,y,z){
+ const scale=34;
+ const px=(x-y)*scale + canvas.width*0.55;
+ const py=(x+y)*scale*0.5 - z*4 + canvas.height*0.72;
+ return {x:px,y:py};
+}
+
+function drawSurface(){
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+
+ for(let w=-4;w<=8;w+=0.25){
+   ctx.beginPath();
+   let first=true;
+   for(let t=-4;t<=4;t+=0.25){
+      let z=cost(w)+(t*t)*0.25;
+      let p=project(w,t,z);
+      if(first){ctx.moveTo(p.x,p.y);first=false;}
+      else ctx.lineTo(p.x,p.y);
+   }
+   ctx.strokeStyle="rgba(80,120,255,0.18)";
+   ctx.stroke();
+ }
+
+ for(let t=-4;t<=4;t+=0.25){
+   ctx.beginPath();
+   let first=true;
+   for(let w=-4;w<=8;w+=0.25){
+      let z=cost(w)+(t*t)*0.25;
+      let p=project(w,t,z);
+      if(first){ctx.moveTo(p.x,p.y);first=false;}
+      else ctx.lineTo(p.x,p.y);
+   }
+   ctx.strokeStyle="rgba(80,120,255,0.18)";
+   ctx.stroke();
+ }
+
+ if(state.path.length>1){
+   ctx.beginPath();
+   state.path.forEach((pt,i)=>{
+      let p=project(pt.w,0,pt.c);
+      if(i===0) ctx.moveTo(p.x,p.y);
+      else ctx.lineTo(p.x,p.y);
+   });
+   ctx.lineWidth=4;
+   ctx.strokeStyle="red";
+   ctx.stroke();
+   ctx.lineWidth=1;
+ }
+
+ let p=project(state.w,0,cost(state.w));
+ ctx.beginPath();
+ ctx.arc(p.x,p.y,8,0,Math.PI*2);
+ ctx.fillStyle="yellow";
+ ctx.fill();
+}
+
+function step(){
+ let g=grad(state.w);
+ let c=cost(state.w);
+
+ document.getElementById("log").innerHTML=`
+ <table>
+ <tr><td>Iteration</td><td>${state.iter}</td></tr>
+ <tr><td>w</td><td>${state.w.toFixed(6)}</td></tr>
+ <tr><td>Cost J(w)</td><td>${c.toFixed(6)}</td></tr>
+ <tr><td>Gradient dJ/dw</td><td>${g.toFixed(6)}</td></tr>
+ <tr><td>Update</td><td>w ← w - α(dJ/dw)</td></tr>
+ <tr><td>New w</td><td>${(state.w-state.lr*g).toFixed(6)}</td></tr>
+ </table>`;
+
+ state.path.push({w:state.w,c:c});
+ drawSurface();
+
+ state.w=state.w-state.lr*g;
+ state.iter++;
+
+ if(state.iter<80 && Math.abs(g)>1e-5){
+   requestAnimationFrame(()=>setTimeout(step,250));
+ }
+}
+
+function start(){
+ state.w=parseFloat(document.getElementById("w0").value);
+ state.lr=parseFloat(document.getElementById("lr").value);
+ state.iter=0;
+ state.path=[];
+ drawSurface();
+ step();
+}
+
+start();
+</script>
+</body>
+</html>
